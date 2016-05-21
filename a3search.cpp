@@ -12,24 +12,26 @@
 #include<map>
 #include<vector>
 #include<dirent.h>
+#include<algorithm>
 
 using namespace std;
 
 struct Node
 {
 	string pattern;
+	int id;
 	Node* next;
 };
 
 int shift[729];
 Node *hashtb[729];
-int m = 257, M, B = 2;
+int m = 257, B = 2;
 
 int hashcpt(char first, char second);
 
 vector<string> find_files(char* folder);
 
-int Wu_manber(ifstream& file, string* pat, int npats);
+int Wu_manber(ifstream& file,int npats);
 
 int main(int argc, char* argv[])
 {
@@ -46,15 +48,13 @@ int main(int argc, char* argv[])
 	// pbegin is the begining position of pattern in argument array
 
 	string folder(argv[1]);
-	string idxfile(argv[2]);
-	short idxsize = 20;
+	if (folder[folder.size() - 1] != '/')
+		folder += "/";
+
 	string o(argv[3]);
 	short pbegin = 3;
 	if (o == "-s")
 	{
-		string s(argv[4]);
-		//This is not a bug, c++11 func
-		idxsize = (short) stoi(s);
 		assert(argc > 5);
 		pbegin = 5;
 	}
@@ -62,7 +62,7 @@ int main(int argc, char* argv[])
 	int npats = argc - pbegin;
 	string pat[npats];
 
-	//Get all patterns
+	//Get all patterns from argv[] to pat[]
 	for (int i = pbegin; i < argc; ++i)
 	{
 		// Convert to lower string
@@ -75,9 +75,11 @@ int main(int argc, char* argv[])
 		}
 
 		pat[i - pbegin] = argv[i];
-		if (pat[i - pbegin].size() < m)
+
+		//Set m as the minimum length of searching pattern
+		int sz = pat[i - pbegin].size();
+		if (sz < m)
 			m = pat[i - pbegin].size();
-		//cout << pat[i-pbegin].size()<<endl;
 	}
 
 	// Preprocessing patterns
@@ -85,35 +87,36 @@ int main(int argc, char* argv[])
 	fill_n(hashtb, 729, nullptr);
 	for (int i = 0; i < npats; ++i)
 	{
-		cout << "[" << i << "] :" << pat[i]<<":" << endl;
 		for (int j = 0; j < m - 1; ++j)
 		{
-			//cout << "i:"<<i<<" l: "<<j <<endl;
+			// Compute the hash value and save the shift value into hash array
+			// If the shift value is 0, save the pattern into the linked list hash array
 			int h = hashcpt(pat[i][j], pat[i][j + 1]);
 			int sh = m - 2 - j;
 			if (shift[h] == -1 || shift[h] > sh)
 				shift[h] = sh;
-			if(sh == 0){
-				cout << " gogo"<< endl;
-				if(hashtb[h] == nullptr){
+			if (sh == 0)
+			{
+				if (hashtb[h] == nullptr)
+				{
 
 					Node *newnd = new Node;
 					newnd->next = nullptr;
 					newnd->pattern = pat[i];
-
-					cout << " pattern:"<<newnd->pattern<< endl;
-
+					newnd->id = i;
 					hashtb[h] = newnd;
-					cout << " okok"<< endl;
-				}else{
+
+				} else
+				{
 					Node *nd = hashtb[h];
 
-					while(nd->next != nullptr)
+					while (nd->next != nullptr)
 						nd = nd->next;
 
 					Node *newnd = new Node;
 					newnd->next = nullptr;
 					newnd->pattern = pat[i];
+					newnd->id = i;
 
 					nd->next = newnd;
 				}
@@ -121,43 +124,55 @@ int main(int argc, char* argv[])
 		}
 	}
 
-	for(int i = 0; i < 729;++i){
-		if(shift[i] != -1)
-			cout<<"shift["<<i<<"]: "<<shift[i];
-
-		if(hashtb[i] != nullptr){
-			Node *nd = hashtb[i];
-			cout << "----patterns: ";
-			while(nd != nullptr){
-				cout<<" ["<<nd->pattern<<"] ";
-				nd = nd->next;
-			}
-		}
-		if(shift[i] != -1)
-		cout<<endl;
-	}
+//	for(int i = 0; i < 729;++i){
+//		if(shift[i] != -1)
+//			cout<<"shift["<<i<<"]: "<<shift[i];
+//
+//		if(hashtb[i] != nullptr){
+//			Node *nd = hashtb[i];
+//			cout << "----patterns: ";
+//			while(nd != nullptr){
+//				cout<<" ["<<nd->pattern<<"] ";
+//				nd = nd->next;
+//			}
+//		}
+//		if(shift[i] != -1)
+//		cout<<endl;
+//	}
 
 	// Get all file names
 	vector<string> files = find_files(argv[1]);
 
-	//debug
-//	for (auto i = files.begin(); i != files.end(); ++i)
-//	{
-//		cout << "[" << *i << "] "  << endl;
-//	}
+	vector<pair<string,int>> occ;
 
 	for (auto i = files.begin(); i != files.end(); ++i)
 	{
-		ifstream tmp(*i, ios::in);
+		ifstream tmp(folder + *i, ios::in);
 
-		int count = Wu_manber(tmp, pat, npats);
+		int count = Wu_manber(tmp,npats);
+//		if (count != 0)
+//			cout << "[" << *i << "] :" << count << ":" << endl;
+		if (count != 0)
+			occ.push_back(make_pair(*i, count));
+		tmp.close();
 	}
-
+	sort(occ.begin(),occ.end(),[](const pair<string,int>& p1,const pair<string,int>& p2){
+		if(p1.second == p2.second)
+			return p1.first < p2.first;
+		return p1.second > p2.second;
+	});
+	for (auto i = occ.begin();i!=occ.end();++i){
+		cout<<i->first<<endl;
+	}
 }
 
 int hashcpt(char first, char second)
 {
 
+	if (first <= 'Z' && first >= 'A')
+		first = first - ('Z' - 'z');
+	if (second <= 'Z' && second >= 'A')
+		second = second - ('Z' - 'z');
 	if (first == ' ')
 	{
 		first = 26;
@@ -190,7 +205,19 @@ vector<string> find_files(char *folder)
 			if (dir->d_name[0] == '.')
 				continue;
 
-			string f(dir->d_name);
+			string f = "";
+			int i = 0;
+			while (dir->d_name[i] != '\0')
+			{
+				if (dir->d_name[i] == '[' || dir->d_name[i] == ']'
+						|| dir->d_name[i] == ' ' || dir->d_name[i] == '<'
+						|| dir->d_name[i] == '>')
+				{
+					f += "\\";
+				}
+				f += dir->d_name[i];
+				i++;
+			}
 			files.push_back(f);
 		}
 		closedir(d);
@@ -199,12 +226,87 @@ vector<string> find_files(char *folder)
 	return files;
 }
 
-int Wu_manber(ifstream& file, string* pat, int npats)
+int Wu_manber(ifstream& file,int npats)
 {
-//	for (int i = 0; i < npats; ++i)
-//	{
-//		cout << "[" << i << "] " << pat[i] << endl;
-//	}
+	int c[npats];
+	fill_n(c, npats, 0);
+	// string tmp is to save the line of files
+	string tmp = "";
+	// int count counts the times of pattern matched
+	int count = 0;
+	while (getline(file, tmp))
+	{
+		int i = (m - 1) - 1;
+		int sz = tmp.size();
+		while (i < sz - 1)
+		{
+			// Check if two 'last' characters are special characters
+			if ((tmp[i] < 65 && tmp[i] != ' ') || (tmp[i] > 90 && tmp[i] < 97)
+					|| tmp[i] > 122)
+			{
+				i += m - 1;
+				continue;
+			}
+			if ((tmp[i + 1] < 65 && tmp[i + 1] != ' ')
+					|| (tmp[i + 1] > 90 && tmp[i + 1] < 97) || tmp[i + 1] > 122)
+			{
+				i += m;
+				continue;
+			}
 
-	return 1;
+			// Compute the hash value of two characters and get the shift value
+			int h = hashcpt(tmp[i], tmp[i + 1]);
+
+			if (shift[h] == -1)
+			{
+				// If shift value equals to -1, this combination is not in
+				// any patterns, shift i
+				i += m - 1;
+				continue;
+			} else if (shift[h] != 0)
+			{
+				// if shift value not equals to 0, shift i
+				i += shift[h];
+				continue;
+			} else
+			{
+				// If shift value equals to 0, compare all the possible patterns from linked list
+				Node *nd = hashtb[h];
+				while (nd != nullptr)
+				{
+					int b = i - (m - 2);
+					int f = 1;
+					for (unsigned int j = 0; j < nd->pattern.size(); ++j)
+					{
+						if (b == sz)
+						{
+							f = 0;
+							break;
+						}
+						char cmp = tmp[b];
+						if (cmp <= 'Z' && cmp >= 'A')
+							cmp = cmp - ('Z' - 'z');
+						if (nd->pattern[j] != cmp)
+						{
+							f = 0;
+							break;
+						}
+						b++;
+					}
+					if (f == 1)
+						c[nd->id] = count++;
+
+					nd = nd->next;
+				}
+				i++;
+			}
+
+		}
+	}
+	for(int i = 0;i<npats;++i){
+		if(c[i] == 0)
+			return 0;
+
+	}
+	return count;
 }
